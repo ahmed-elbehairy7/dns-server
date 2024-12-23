@@ -1,3 +1,3 @@
 from unittest import main
 
-main()
+main(verbosity=1)

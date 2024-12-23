@@ -1,33 +1,46 @@
-from records.cache import Cache
-from records.answer import Answer
-from ..utils.handle_test import handle_test as ht
+from src.records.cache import Cache
+from src.records.answer import Answer
+from src.records.record import Record
 from dnslib import DNSRecord
 from redis import Redis
+from unittest import TestCase
 
 
-def __init__():
-    Cache.initialize()
+class testCache(TestCase):
 
+    def setUp(self):
+        Record.initialize()
+        Record.DB.flushall()
+        return super().setUp()
 
-def __finish__():
-    Cache.r.close()
+    def tearDown(self):
+        Record.DB.close()
+        return super().tearDown()
 
+    def test_initializing(self):
+        Record.DB.flushall()
+        self.assertTrue(Cache.initialize())
 
-handle_test = lambda func: ht(func, __init__, __finish__)
+        r: Redis = Record.DB
+        self.assertGreater(len(r.keys("*")), 0)
 
+    def test_insert(self):
 
-@handle_test
-def test_insert():
+        Cache.initialize()
 
-    r: Redis = Cache.r
-    rec = DNSRecord.question("www.google.com", "CNAME")
-    rec.add_answer(Answer(5, "forcesafesearch.google.com", 300).getRR("www.google.com"))
+        r: Redis = Record.DB
+        rec = DNSRecord.question("www.google.com", "CNAME")
+        rec.add_answer(
+            Answer(5, "forcesafesearch.google.com", 300).getRR("www.google.com")
+        )
 
-    if r.exists("www.google.com:5"):
-        r.delete("www.google.com:5")
+        if r.exists("www.google.com:5"):
+            r.delete("www.google.com:5")
 
-    assert r.exists("www.google.com") == False
-    Cache.insert("www.google.com", 5, rec.rr)
-    assert r.exists("www.google.com:5")
-    assert r.lrange("www.google.com:5", 0, -1)[0] == "forcesafesearch.google.com"
-    assert r.ttl("www.google.com:5") == 300
+        self.assertFalse(r.exists("www.google.com"))
+        Cache.insert("www.google.com", 5, rec.rr)
+        self.assertTrue(r.exists("www.google.com:5"))
+        self.assertEqual(
+            r.lrange("www.google.com:5", 0, -1)[0], "forcesafesearch.google.com"
+        )
+        self.assertEqual(r.ttl("www.google.com:5"), 300)

@@ -1,68 +1,81 @@
-from records.record import Record
-from records.answer import Answer
-from utils.handle_test import handle_test as ht
-from redis import Redis
+from src.records.record import Record
+from src.records.answer import Answer
+from src.records.cache import Cache
 from dnslib import DNSRecord
+from unittest import TestCase
 
 
-def __init__():
-    Record.initialize()
+class testRecords(TestCase):
 
+    def setUp(self):
+        Record.DB.flushall()
+        Record.initialize()
+        return super().setUp()
 
-def __finish__():
-    Record.r.close()
+    def tearDown(self):
+        Record.DB.close()
+        return super().tearDown()
 
+    def test_get_answers(self):
 
-handle_test = lambda x: ht(x, __init__, __finish__)
+        req = DNSRecord.question("www.google.com", "CNAME")
+        reply = req.reply()
 
+        google_answers = [Answer(5, "forcesafesearch.google.com", 300)]
+        safesearch_answers = [
+            Answer(1, "216.1.1.1", 300),
+            Answer(28, "ff:ff:ff:ff:", 300),
+        ]
+        block_answers = [Answer(1, "0.0.0.0", 300), Answer(28, "::", 300)]
 
-@handle_test
-def test_get_answers():
+        self.assertEqual(
+            Record.get_answers(reply, 5, "www.google.com", google_answers, None).rr[0],
+            google_answers[0].getRR("www.google.com"),
+        )
 
-    req = DNSRecord.question("www.google.com", "CNAME")
-    reply = req.reply()
+        self.assertEqual(
+            Record.get_answers(reply, 1, "www.google.com", google_answers, None).rr[0],
+            google_answers[0].getRR("www.google.com"),
+        )
 
-    google_answers = [Answer(5, "forcesafesearch.google.com", 300)]
-    safesearch_answers = [Answer(1, "216.1.1.1", 300), Answer(28, "ff:ff:ff:ff:", 300)]
-    block_answers = [Answer(1, "0.0.0.0", 300), Answer(28, "::", 300)]
+        reply = req.reply()
+        self.assertEqual(
+            Record.get_answers(
+                reply, 1, "forcesafesearch.google.com", safesearch_answers, None
+            ).rr[0],
+            safesearch_answers[0].getRR("forcesafesearch.google.com"),
+        )
 
-    assert Record.get_answers(reply, 5, "www.google.com", google_answers, None).rr[
-        0
-    ] == google_answers[0].getRR("www.google.com")
+        reply = req.reply()
+        ans = Record.get_answers(
+            reply,
+            1,
+            "forcesafesearch.google.com",
+            [*safesearch_answers, *google_answers],
+            None,
+        ).rr
+        self.assertEqual(
+            ans[0], safesearch_answers[0].getRR("forcesafesearch.google.com")
+        )
+        self.assertEqual(ans[1], google_answers[0].getRR("forcesafesearch.google.com"))
 
-    assert Record.get_answers(reply, 1, "www.google.com", google_answers, None).rr[
-        0
-    ] == google_answers[0].getRR("www.google.com")
+    def test_query(self):
 
-    reply = req.reply()
-    assert Record.get_answers(
-        reply, 1, "forcesafesearch.google.com", safesearch_answers, None
-    ).rr[0] == safesearch_answers[0].getRR("forcesafesearch.google.com")
+        Record.regex = ""
+        Record.answers = []
+        Cache.initialize()
 
-    reply = req.reply()
-    ans = Record.get_answers(
-        reply,
-        1,
-        "forcesafesearch.google.com",
-        [*safesearch_answers, *google_answers],
-        None,
-    ).rr
-    assert ans[0] == safesearch_answers[0].getRR("forcesafesearch.google.com")
-    assert ans[1] == google_answers[0].getRR("forcesafesearch.google.com")
+        answers = [Answer(5, "restrict.youtube.com", 300)]
 
+        req = DNSRecord.question("youtube.googleapis.com", "CNAME")
+        reply = req.reply()
 
-@handle_test
-def test_query():
+        self.assertEqual(
+            Record.query(reply, 5, "youtube.googleapis.com", req, None).rr[0],
+            answers[0].getRR("youtube.googleapis.com"),
+        )
+        del Record.regex
+        del Record.answers
 
-    answers = [Answer(5, "forcesafesearch.google.com", 300)]
-
-    req = DNSRecord.question("www.google.com", "CNAME")
-    reply = req.reply()
-
-    assert Record.query(reply, 5, "www.google.com", req, None).rr[0] == answers[
-        0
-    ].getRR("www.google.com")
-
-
-def test_clean_host():
-    assert Record.clean_host("www.google.com.") == "www.google.com"
+    def test_clean_host(self):
+        self.assertEqual(Record.clean_host("www.google.com."), "www.google.com")

@@ -92,5 +92,4 @@ class Block(Record):
         cls.regex = get(f"{DB_ADDR}/block/regex?level={LEVEL}").text
         if not cls.regex:
             raise Exception("Couldn't get block regex from db")
-        print("Got block regex from db successfully: ")
-        print(cls.regex, end="\n\n")
+        return True

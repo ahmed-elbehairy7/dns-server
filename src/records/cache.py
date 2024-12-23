@@ -18,7 +18,7 @@ class Cache(Record):
         if res["status"] != "success":
             raise Exception("Couldn't fetch data from db")
 
-        print("Fetched data successfully")
+        return True
 
     @classmethod
     def insert(cls, host: str, _type: RecordType, rr):
